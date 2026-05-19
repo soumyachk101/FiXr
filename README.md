@@ -120,19 +120,46 @@ npm run build
 npm link
 ```
 
-### Environment
+### Environment & Multi-Provider Support
+
+FiXr is now provider-agnostic. Any model starting with `claude-` will use the official Anthropic SDK, while any other model will route to an OpenAI-compatible API endpoint (using standard `fetch` without requiring extra NPM packages).
 
 Create a `.env` file in the project root:
 
+#### Option A: Anthropic Claude (Default)
 ```env
-ANTHROPIC_API_KEY=your-api-key-here
+ANTHROPIC_API_KEY=your-anthropic-key
 ```
 
-Or export it directly:
-
-```bash
-export ANTHROPIC_API_KEY='your-api-key-here'
+#### Option B: OpenAI (e.g. GPT-4o)
+```env
+OPENAI_API_KEY=your-openai-key
 ```
+Then run or configure with `--model gpt-4o`.
+
+#### Option C: Other OpenAI-Compatible Providers (DeepSeek, Groq, OpenRouter, Ollama)
+Configure `OPENAI_API_BASE` alongside the API key.
+
+- **DeepSeek:**
+  ```env
+  OPENAI_API_KEY=your-deepseek-key
+  OPENAI_API_BASE=https://api.deepseek.com
+  ```
+  Use model: `--model deepseek-chat`
+  
+- **Groq:**
+  ```env
+  OPENAI_API_KEY=your-groq-key
+  OPENAI_API_BASE=https://api.groq.com/openai/v1
+  ```
+  Use model: `--model llama-3.3-70b-versatile`
+
+- **Local Ollama:**
+  ```env
+  OPENAI_API_KEY=ollama
+  OPENAI_API_BASE=http://localhost:11434/v1
+  ```
+  Use model: `--model llama3`
 
 ---
 
