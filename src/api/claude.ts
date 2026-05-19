@@ -48,33 +48,75 @@ export async function callAgent(
       );
     }
 
-    try {
-      const response = await fetch(`${baseURL}/chat/completions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: model,
-          max_tokens: maxTokens,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userMessage },
-          ],
-          temperature: 0.1,
-        }),
-      });
+    let attempts = 0;
+    const maxAttempts = 3;
+    let delay = 1000;
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`LLM API returned status ${response.status}: ${errorText}`);
+    while (true) {
+      try {
+        const response = await fetch(`${baseURL}/chat/completions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model: model,
+            max_tokens: maxTokens,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userMessage },
+            ],
+            temperature: 0.1,
+          }),
+        });
+
+        if (response.status === 429) {
+          attempts++;
+          if (attempts >= maxAttempts) {
+            const errorText = await response.text();
+            throw new Error(`Rate limit exceeded (429) after ${maxAttempts} attempts: ${errorText}`);
+          }
+
+          let waitTime = delay;
+          try {
+            const body = await response.clone().json() as any;
+            if (body?.error?.message) {
+              const matchSec = body.error.message.match(/try again in ([\d\.]+)s/);
+              if (matchSec) {
+                waitTime = parseFloat(matchSec[1]) * 1000 + 200;
+              } else {
+                const matchMs = body.error.message.match(/try again in ([\d\.]+)ms/);
+                if (matchMs) {
+                  waitTime = parseInt(matchMs[1]) + 200;
+                }
+              }
+            }
+          } catch {}
+
+          await new Promise((resolve) => setTimeout(resolve, waitTime));
+          delay *= 2;
+          continue;
+        }
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`LLM API returned status ${response.status}: ${errorText}`);
+        }
+
+        const data = await response.json() as any;
+        return data.choices?.[0]?.message?.content || "";
+      } catch (error: any) {
+        if (error.message.includes("Rate limit exceeded")) {
+          throw error;
+        }
+        attempts++;
+        if (attempts >= maxAttempts) {
+          throw new Error(`Failed to call OpenAI-compatible API: ${error.message}`);
+        }
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        delay *= 2;
       }
-
-      const data = await response.json() as any;
-      return data.choices?.[0]?.message?.content || "";
-    } catch (error: any) {
-      throw new Error(`Failed to call OpenAI-compatible API: ${error.message}`);
     }
   }
 }
