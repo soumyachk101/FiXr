@@ -130,5 +130,4 @@ Create a `.codewatchrc.json` in your project root:
 | Metric | Target |
 |--------|--------|
 | Analysis Time | < 30 seconds |
-| Max File Size | 500 lines |
 | Memory Usage | < 100 MB |
