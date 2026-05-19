@@ -169,37 +169,89 @@ FiXr includes built-in rate-limit (HTTP 429) protection for OpenAI-compatible en
 
 ---
 
-## 📖 Usage
+## 📖 Command Reference & Usage Guide
 
-### Analyze a single file
+FiXr can be executed either globally (if linked using `npm link`) or locally within this project root.
 
+### Invocation Methods
+- **Global:** `codewatch <command> [options]`
+- **Local (npm):** `npm start -- <command> [options]`
+- **Local (node):** `node dist/index.js <command> [options]`
+
+---
+
+### 1. `analyze <file>`
+Analyzes a single specific file with the multi-agent pipeline.
+
+#### Syntax
 ```bash
-codewatch analyze src/index.ts
+codewatch analyze <file-path> [options]
 ```
 
-### Watch a directory for changes
+#### Options
+| Option | Short | Description |
+|---|---|---|
+| `--output <path>` | `-o` | File path to save the generated Markdown report. |
+| `--agents <list>` | `-a` | Comma-separated agents to run: `bug`, `fixer`, `quality`, `security`. |
+| `--model <model>` | `-m` | Specify the model (e.g. `claude-3-5-sonnet-20240620`, `llama-3.3-70b-versatile`). |
 
+#### Examples
 ```bash
+# Run analysis with default settings (all agents, default Claude model)
+codewatch analyze src/index.ts
+
+# Analyze a Python script using Groq's Llama model and output a Markdown report
+codewatch analyze scripts/process.py -m llama-3.3-70b-versatile -o reports/process-report.md
+
+# Run only Bug Detection and Security Auditing
+codewatch analyze src/api/claude.ts --agents bug,security
+```
+
+---
+
+### 2. `watch [dir]`
+Monitors a directory for changes and automatically runs the multi-agent analysis pipeline on modified files when they are saved.
+
+#### Syntax
+```bash
+codewatch watch [directory-path]
+```
+*(If no directory path is specified, it defaults to the current working directory `.`).*
+
+#### Key Mechanics
+- **Debounced Runs:** Includes a configurable debounce timer (defaults to `2000ms`) to avoid triggering duplicate/rapid requests when files are auto-formatted or saved multiple times.
+- **Smart Ignoring:** Automatically skips directories like `node_modules`, `dist`, `.git`, and custom globs specified in your config file.
+
+#### Examples
+```bash
+# Watch the entire current directory
+codewatch watch
+
+# Watch only the src directory
 codewatch watch ./src
 ```
 
-Files are re-analyzed automatically on save (debounced to prevent API spam).
+---
 
-### Analyze files changed in Git
+### 3. `diff`
+Runs the review pipeline only on the files that are currently changed/unstaged in git.
 
+#### Syntax
 ```bash
-codewatch diff
+codewatch diff [options]
 ```
 
-Runs `git diff --name-only HEAD` under the hood and analyzes each changed file sequentially.
+#### Options
+| Option | Short | Description |
+|---|---|---|
+| `--agents <list>` | `-a` | Comma-separated agents to run. |
+| `--model <model>` | `-m` | Specify the model to override the default. |
 
-### CLI Options
-
-| Option | Description | Available On |
-|--------|-------------|--------------|
-| `-o, --output <path>` | Save report to a Markdown file | `analyze` |
-| `-a, --agents <list>` | Comma-separated agents to run: `bug`, `fixer`, `quality`, `security` | `analyze`, `diff` |
-| `-m, --model <model>` | Override the AI model (default: `claude-3-5-sonnet-20240620`) | `analyze`, `diff` |
+#### Examples
+```bash
+# Analyze all files changed in the git tree using Groq
+codewatch diff --model llama-3.3-70b-versatile
+```
 
 ---
 
