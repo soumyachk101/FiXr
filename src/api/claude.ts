@@ -107,12 +107,12 @@ export async function callAgent(
         const data = await response.json() as any;
         return data.choices?.[0]?.message?.content || "";
       } catch (error: any) {
-        if (error.message.includes("Rate limit exceeded")) {
+        if (error?.message?.includes("Rate limit exceeded")) {
           throw error;
         }
         attempts++;
         if (attempts >= maxAttempts) {
-          throw new Error(`Failed to call OpenAI-compatible API: ${error.message}`);
+          throw new Error(`Failed to call OpenAI-compatible API: ${error?.message || error}`);
         }
         await new Promise((resolve) => setTimeout(resolve, delay));
         delay *= 2;
