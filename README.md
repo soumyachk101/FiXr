@@ -10,9 +10,9 @@ Built for terminal-first workflows, FiXr helps engineering teams standardize cod
 
 ## Product Preview
 
-![FiXr workflow preview](docs/assets/fixr-overview.gif)
+![FiXr multi-agent workflow animation](docs/assets/fixr-overview.gif)
 
-![FiXr CLI preview](docs/assets/fixr-cli-demo.gif)
+![FiXr command-line interface demonstration](docs/assets/fixr-cli-demo.gif)
 
 ## Table of Contents
 
@@ -45,7 +45,7 @@ FiXr uses a sequential pipeline and a shared `PipelineContext` object. Each stag
 
 ```mermaid
 graph TD
-    User[User invokes FiXr CLI via codewatch] --> Reader[Read file and detect language]
+    User[User runs FiXr CLI] --> Reader[Read file and detect language]
     Reader --> A1[Agent 1: Bug Detective]
     A1 --> A2[Agent 2: Bug Fixer]
     A2 --> A3[Agent 3: Code Quality Reviewer]
