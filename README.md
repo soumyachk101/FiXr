@@ -161,6 +161,12 @@ Configure `OPENAI_API_BASE` alongside the API key.
   ```
   Use model: `--model llama3`
 
+#### ⚡ Rate Limit Handling & Auto-Retries
+FiXr includes built-in rate-limit (HTTP 429) protection for OpenAI-compatible endpoints (like Groq):
+- **Smart Parsing:** It parses error messages from providers (like Groq's `try again in 440ms` or `try again in 1.2s`) to compute precise wait times.
+- **Auto-Retries:** Automatically retries up to 3 times before failing.
+- **Exponential Backoff:** If the error message format is unrecognized, it falls back to exponential backoff (starting at 1s, doubling each time).
+
 ---
 
 ## 📖 Usage
