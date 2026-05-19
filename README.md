@@ -8,13 +8,13 @@ FiXr is a multi-agent AI code analysis CLI that reviews source files with a stru
 
 Built for terminal-first workflows, FiXr helps engineering teams standardize code review quality and accelerate feedback loops without leaving the command line.
 
-> Note: the product name is **FiXr**, while the current CLI executable in this repository is **`codewatch`**.
+> Note: the product name is **FiXr**, while the current CLI executable in this repository is **`codewatch`** for backward compatibility.
 
 ## Product Preview
 
-![FiXr multi-agent workflow animation showing bug detection, auto-fix, quality review, and security audit stages](docs/assets/fixr-overview.gif)
+![FiXr multi-agent workflow demonstration](docs/assets/fixr-overview.gif)
 
-![FiXr command-line interface demonstration showing codewatch analyze output with findings, score, and markdown report generation](docs/assets/fixr-cli-demo.gif)
+![FiXr CLI analyze output demonstration](docs/assets/fixr-cli-demo.gif)
 
 ## Table of Contents
 
@@ -150,9 +150,9 @@ OPENAI_API_BASE=https://provider-endpoint.example.com/v1
 
 Provider examples:
 
-- DeepSeek: `https://api.deepseek.com`
-- Groq: `https://api.groq.com/openai/v1`
-- Local Ollama: `http://localhost:11434/v1`
+- DeepSeek: `https://api.deepseek.com` (model example: `deepseek-chat`)
+- Groq: `https://api.groq.com/openai/v1` (model example: `llama-3.3-70b-versatile`)
+- Local Ollama: `http://localhost:11434/v1` (model example: `llama3`)
 
 DeepSeek model example:
 
