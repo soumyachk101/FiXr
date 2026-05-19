@@ -1,27 +1,27 @@
-# CodeWatch — Multi-Agent Code Analysis CLI
+# FiXr — Multi-Agent AI Code Analysis CLI
 
-CodeWatch is a powerful CLI tool designed to integrate seamlessly into any developer's workflow. It automatically analyzes your code using a pipeline of four specialized AI agents to find bugs, suggest fixes, improve code quality, and audit security—without the need for manual copy-pasting.
+FiXr is a developer-first CLI tool that pipes your source code through **four specialized AI agents** to detect bugs, auto-fix them, score code quality, and audit for security vulnerabilities — all powered by the Anthropic Claude API.
 
-## 🚀 Vision
+## 🚀 Why FiXr?
 
-To provide a zero-friction, IDE-agnostic AI code review pipeline that gives developers fast, high-quality feedback directly in their terminal.
+Instead of manually reviewing code or copy-pasting into an AI chat, FiXr runs a structured, multi-agent pipeline directly from your terminal. Each agent is purpose-built with a focused prompt, producing structured JSON that feeds into the next stage.
 
 ---
 
-## 📊 Workflow Architecture
+## 📊 Architecture
 
-CodeWatch uses a sequential multi-agent pipeline where the output of one agent informs the next.
+FiXr uses a **sequential multi-agent pipeline** where each agent's output enriches a shared context object (`PipelineContext`) that flows through the chain.
 
 ```mermaid
 graph TD
-    User([User: codewatch analyze src/index.js]) --> FileReader[File Reader: Content + Language Detect]
-    FileReader --> Agent1[Agent 1: Bug Detective]
-    Agent1 -- "Bugs List (JSON)" --> Agent2[Agent 2: Bug Fixer]
-    Agent2 -- "Fixed Code + Diff" --> Agent3[Agent 3: Code Quality]
-    Agent3 -- "Quality Suggestions" --> OutputRenderer[Output Renderer: Terminal / Markdown]
+    User([User: fixr analyze src/app.ts]) --> FileReader[File Reader: Read File + Detect Language]
+    FileReader --> Agent1[🐛 Agent 1: Bug Detective]
+    Agent1 -- "BugReport JSON" --> Agent2[🔧 Agent 2: Bug Fixer]
+    Agent2 -- "BugFixResponse JSON" --> Agent3[✨ Agent 3: Code Quality]
+    Agent3 -- "QualityReport JSON" --> OutputRenderer
 
-    FileReader -.-> Agent4[Agent 4: Security Auditor]
-    Agent4 -- "Security Issues" --> OutputRenderer
+    FileReader -.-> Agent4[🔒 Agent 4: Security Auditor]
+    Agent4 -- "SecurityReport JSON" --> OutputRenderer[Output: Terminal / Markdown]
 
     subgraph "Agent Pipeline"
     Agent1
@@ -31,36 +31,106 @@ graph TD
     end
 ```
 
+**Key detail:** The Bug Fixer receives the bugs found by the Bug Detective. The Code Quality agent analyzes the *fixed* code (not the original). The Security Auditor runs independently on the original code.
+
 ---
 
 ## ✨ Features
 
-- **F1 — Single File Analysis**: Analyze any file instantly.
-- **F2 — Folder Watch**: Automatically analyze files on save.
-- **F3 — Git Diff Analysis**: Analyze only the files changed in your current branch.
-- **F4 — Markdown Reports**: Save detailed analysis reports for later review.
-- **F5 — Selective Agents**: Run only the agents you need (e.g., just security and bugs).
+| Feature | Description |
+|---------|-------------|
+| **Single File Analysis** | Analyze any file with `fixr analyze <file>` |
+| **Folder Watch Mode** | Auto-analyze files on save with `fixr watch [dir]` (powered by Chokidar + Lodash debounce) |
+| **Git Diff Analysis** | Analyze only files changed in the current branch with `fixr diff` |
+| **Markdown Reports** | Export detailed reports with `--output report.md` or via config |
+| **Selective Agents** | Run only the agents you need: `--agents bug,security` |
+| **Custom Models** | Override the AI model per-run: `--model <model-name>` |
+| **Config File Support** | Project-level `.codewatchrc.json` config via Cosmiconfig |
 
 ---
 
-## 🛠️ The 4 Specialized Agents
+## 🤖 The 4 Specialized Agents
 
-| Agent | Name | Responsibility |
-|-------|------|----------------|
-| **Agent 1** | 🐛 Bug Detective | Logic errors, null checks, edge cases, and typos. |
-| **Agent 2** | 🔧 Bug Fixer | Generates fixed code based on Detective's findings. |
-| **Agent 3** | ✨ Code Quality | Readability, structure, naming, and best practices. |
-| **Agent 4** | 🔒 Security Auditor | XSS, injection, exposed secrets, and insecure deps. |
+### Agent 1 — 🐛 Bug Detective
+Scans for logic errors, null references, off-by-one mistakes, async/await issues, unhandled edge cases, typos, and more. Each bug is assigned **HIGH / MEDIUM / LOW** severity and categorized.
+
+### Agent 2 — 🔧 Bug Fixer
+Receives the bug list from Agent 1 and produces a corrected version of the source code. Adds inline `// FIXED:` comments on changed lines. Bugs it can't safely fix are flagged as `// TODO: needs manual fix`.
+
+### Agent 3 — ✨ Code Quality Reviewer
+Analyzes the *fixed* code for readability, structure, naming conventions, performance inefficiencies, and documentation gaps. Outputs an overall rating (**EXCELLENT / GOOD / NEEDS_WORK / POOR**) and a numeric score out of 100.
+
+### Agent 4 — 🔒 Security Auditor
+Performs a thorough security audit on the original code. Checks for injection vulnerabilities, XSS, hardcoded secrets, IDOR, path traversal, CORS misconfigs, weak crypto, and more. Maps findings to **OWASP Top 10** categories where applicable.
+
+---
+
+## 📁 Project Structure
+
+```
+FiXr/
+├── src/
+│   ├── index.ts              # CLI entry point (Commander.js)
+│   ├── api/
+│   │   └── claude.ts          # Anthropic Claude API client
+│   ├── agents/
+│   │   ├── types.ts           # TypeScript interfaces for all agent I/O
+│   │   ├── pipeline.ts        # Sequential agent orchestration + language detection
+│   │   ├── bugDetective.ts    # Agent 1: Bug detection
+│   │   ├── bugFixer.ts        # Agent 2: Automated bug fixing
+│   │   ├── codeQuality.ts     # Agent 3: Code quality review
+│   │   └── securityAudit.ts   # Agent 4: Security audit
+│   ├── commands/
+│   │   ├── analyze.ts         # `analyze <file>` command handler
+│   │   ├── watch.ts           # `watch [dir]` command handler
+│   │   └── diff.ts            # `diff` command handler (git integration)
+│   ├── config/
+│   │   └── loader.ts          # Cosmiconfig-based config loader
+│   └── output/
+│       ├── terminal.ts        # Chalk-powered terminal renderer
+│       └── markdown.ts        # Markdown report generator
+├── package.json
+├── tsconfig.json
+└── .gitignore
+```
 
 ---
 
 ## 📦 Installation
 
-```bash
-# Install globally
-npm install -g codewatch
+### Prerequisites
 
-# Set your Anthropic API Key
+- **Node.js** (v18 or higher recommended)
+- **Anthropic API Key** — [Get one here](https://console.anthropic.com/)
+
+### Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/soumyachk101/FiXr.git
+cd FiXr
+
+# Install dependencies
+npm install
+
+# Build the TypeScript source
+npm run build
+
+# Link globally (optional — makes `codewatch` available everywhere)
+npm link
+```
+
+### Environment
+
+Create a `.env` file in the project root:
+
+```env
+ANTHROPIC_API_KEY=your-api-key-here
+```
+
+Or export it directly:
+
+```bash
 export ANTHROPIC_API_KEY='your-api-key-here'
 ```
 
@@ -69,35 +139,52 @@ export ANTHROPIC_API_KEY='your-api-key-here'
 ## 📖 Usage
 
 ### Analyze a single file
+
 ```bash
-codewatch analyze src/index.js
+codewatch analyze src/index.ts
 ```
 
-### Watch a folder for changes
+### Watch a directory for changes
+
 ```bash
 codewatch watch ./src
 ```
 
+Files are re-analyzed automatically on save (debounced to prevent API spam).
+
 ### Analyze files changed in Git
+
 ```bash
 codewatch diff
 ```
 
-### Options
-- `--output report.md`: Save the output to a Markdown file.
-- `--agents bug,security`: Run specific agents.
-- `--model claude-3-5-sonnet-20240620`: Specify the AI model.
+Runs `git diff --name-only HEAD` under the hood and analyzes each changed file sequentially.
+
+### CLI Options
+
+| Option | Description | Available On |
+|--------|-------------|--------------|
+| `-o, --output <path>` | Save report to a Markdown file | `analyze` |
+| `-a, --agents <list>` | Comma-separated agents to run: `bug`, `fixer`, `quality`, `security` | `analyze`, `diff` |
+| `-m, --model <model>` | Override the AI model (default: `claude-3-5-sonnet-20240620`) | `analyze`, `diff` |
 
 ---
 
 ## ⚙️ Configuration
 
-Create a `.codewatchrc.json` in your project root:
+FiXr uses [Cosmiconfig](https://github.com/cosmiconfig/cosmiconfig) for configuration, so it automatically picks up config from any of these locations:
+
+- `.codewatchrc.json`
+- `.codewatchrc.yaml`
+- `codewatch.config.js`
+- `"codewatch"` key in `package.json`
+
+### Default Configuration
 
 ```json
 {
   "agents": ["bug", "fixer", "quality", "security"],
-  "ignore": ["node_modules", "dist", "*.test.js"],
+  "ignore": ["node_modules", "dist", "*.test.js", ".git"],
   "watch": {
     "extensions": [".js", ".ts", ".py", ".go"],
     "debounce": 2000
@@ -114,20 +201,89 @@ Create a `.codewatchrc.json` in your project root:
 
 ---
 
-## 🏗️ Technical Stack
+## 🗣️ Supported Languages
 
-- **Runtime**: Node.js
-- **Language**: TypeScript
-- **AI Engine**: Anthropic Claude API
-- **CLI Framework**: Commander.js
-- **File Watching**: Chokidar
-- **UI**: Chalk & Ora
+Language detection is based on file extension:
+
+| Extension | Language |
+|-----------|----------|
+| `.js` | JavaScript |
+| `.ts` | TypeScript |
+| `.py` | Python |
+| `.go` | Go |
+| `.java` | Java |
+| `.cpp` | C++ |
+| `.c` | C |
+| `.rb` | Ruby |
+| `.php` | PHP |
+| `.rs` | Rust |
 
 ---
 
-## 📈 Performance Targets
+## 🛠️ Tech Stack
 
-| Metric | Target |
-|--------|--------|
-| Analysis Time | < 30 seconds |
-| Memory Usage | < 100 MB |
+| Component | Technology |
+|-----------|------------|
+| **Runtime** | Node.js |
+| **Language** | TypeScript |
+| **AI Engine** | Anthropic Claude API (`@anthropic-ai/sdk`) |
+| **CLI Framework** | Commander.js |
+| **File Watching** | Chokidar |
+| **Debouncing** | Lodash.debounce |
+| **Config Loading** | Cosmiconfig |
+| **Env Variables** | dotenv |
+| **Terminal Styling** | Chalk |
+| **Spinners** | Ora |
+
+---
+
+## 🧪 Development
+
+```bash
+# Watch mode — recompiles TypeScript on file changes
+npm run watch
+
+# Build once
+npm run build
+
+# Run after building
+npm start
+```
+
+---
+
+## 📈 Sample Output
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  CodeWatch — Multi-Agent Analysis
+  File: src/app.ts
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🐛 BUG DETECTIVE
+  [HIGH] Line 23 — user object null check missing before accessing user.name
+  [MEDIUM] Line 45 — possible off-by-one error in loop
+
+🔧 BUG FIXER
+  - Added null check before accessing user.name on line 23
+  - Fixed loop boundary on line 45
+
+✨ CODE QUALITY
+  Rating: GOOD (78/100)
+  - processData function is 87 lines long (Line 10)
+    Suggestion: Split into smaller functions
+
+🔒 SECURITY AUDITOR
+  [CRITICAL] Line 34 — SQL Injection
+    User input directly concatenated into SQL query
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Score: 78/100  |  Issues: 3
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+---
+
+## 📄 License
+
+ISC
