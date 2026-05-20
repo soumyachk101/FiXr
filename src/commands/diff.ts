@@ -7,7 +7,7 @@ function resolveDiffOutputPath(baseOutput: string | undefined, filePath: string,
   if (!baseOutput) return undefined;
   if (totalFiles === 1) return baseOutput;
 
-  let isDirectory = baseOutput.endsWith(path.sep);
+  let isDirectory = baseOutput.endsWith("/") || baseOutput.endsWith("\\");
   if (!isDirectory) {
     try {
       if (fs.existsSync(baseOutput)) {

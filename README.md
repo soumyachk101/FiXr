@@ -584,7 +584,7 @@ codewatch diff --model gpt-4o
 codewatch diff -o reports/security-diff.md
 ```
 
-When a single file is analyzed, the output path is used as-is. When multiple files are analyzed, the output path is adjusted per file:
+When a single file is analyzed, the output path is used as-is. When multiple files are analyzed, the output path is adjusted per file (where `<file>` is the analyzed file basename, e.g., `index.ts`):
 
 - `-o reports/` → `reports/report-<file>.md`
 - `-o reports/diff.md` → `reports/diff-<file>.md`
