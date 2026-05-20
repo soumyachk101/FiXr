@@ -7,8 +7,16 @@ function resolveDiffOutputPath(baseOutput: string | undefined, filePath: string,
   if (!baseOutput) return undefined;
   if (totalFiles === 1) return baseOutput;
 
-  const isDirectory = baseOutput.endsWith(path.sep)
-    || (fs.existsSync(baseOutput) && fs.statSync(baseOutput).isDirectory());
+  let isDirectory = baseOutput.endsWith(path.sep);
+  if (!isDirectory) {
+    try {
+      if (fs.existsSync(baseOutput)) {
+        isDirectory = fs.statSync(baseOutput).isDirectory();
+      }
+    } catch {
+      isDirectory = false;
+    }
+  }
   const fileName = path.basename(filePath);
 
   if (isDirectory) {

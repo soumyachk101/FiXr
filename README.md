@@ -584,7 +584,11 @@ codewatch diff --model gpt-4o
 codewatch diff -o reports/security-diff.md
 ```
 
-When multiple files are analyzed, the output path is suffixed per file (or treated as a directory if it ends with a path separator).
+When a single file is analyzed, the output path is used as-is. When multiple files are analyzed, the output path is adjusted per file:
+
+- `-o reports/` → `reports/report-<file>.md`
+- `-o reports/diff.md` → `reports/diff-<file>.md`
+- `-o reports/diff` → `reports/diff-<file>`
 
 **Examples:**
 
