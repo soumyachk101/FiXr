@@ -6,8 +6,9 @@ import { loadConfig } from "../config/loader";
 import path from "path";
 import ora from "ora";
 
-export async function watchCommand(dir: string) {
+export async function watchCommand(dir: string, options: { model?: string } = {}) {
   const config = await loadConfig();
+  const model = options.model || config.model;
 
   const watcher = chokidar.watch(dir, {
     ignored: config.ignore,
@@ -21,7 +22,7 @@ export async function watchCommand(dir: string) {
     console.log(`\n📂 Changed: ${filePath}`);
     const spinner = ora(`Analyzing...`).start();
     try {
-      const ctx = await runPipeline(filePath, { agents: config.agents, model: config.model });
+      const ctx = await runPipeline(filePath, { agents: config.agents, model });
       spinner.succeed("Analysis complete");
       renderTerminal(ctx);
     } catch (error: any) {

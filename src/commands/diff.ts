@@ -1,6 +1,27 @@
 import { execSync } from "child_process";
 import { analyzeCommand } from "./analyze";
 import path from "path";
+import fs from "fs";
+
+function resolveDiffOutputPath(baseOutput: string | undefined, filePath: string, totalFiles: number): string | undefined {
+  if (!baseOutput) return undefined;
+  if (totalFiles === 1) return baseOutput;
+
+  const isDirectory = baseOutput.endsWith(path.sep)
+    || (fs.existsSync(baseOutput) && fs.statSync(baseOutput).isDirectory());
+  const fileName = path.basename(filePath);
+
+  if (isDirectory) {
+    return path.join(baseOutput, `report-${fileName}.md`);
+  }
+
+  const parsed = path.parse(baseOutput);
+  if (parsed.ext) {
+    return path.join(parsed.dir, `${parsed.name}-${fileName}${parsed.ext}`);
+  }
+
+  return `${baseOutput}-${fileName}`;
+}
 
 export async function diffCommand(options: any) {
   try {
@@ -16,7 +37,9 @@ export async function diffCommand(options: any) {
 
     for (const file of files) {
       const filePath = path.resolve(process.cwd(), file);
-      await analyzeCommand(filePath, options);
+      const outputPath = resolveDiffOutputPath(options.output, filePath, files.length);
+      const perFileOptions = outputPath ? { ...options, output: outputPath } : options;
+      await analyzeCommand(filePath, perFileOptions);
     }
   } catch (error: any) {
     console.error("Error running git diff:", error.message);

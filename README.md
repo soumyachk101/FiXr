@@ -578,6 +578,14 @@ codewatch diff --agents bug,security
 codewatch diff --model gpt-4o
 ```
 
+`--output <path>`, `-o` — Save markdown report to file
+
+```bash
+codewatch diff -o reports/security-diff.md
+```
+
+When multiple files are analyzed, the output path is suffixed per file (or treated as a directory if it ends with a path separator).
+
 **Examples:**
 
 ```bash
@@ -713,4 +721,3 @@ Score: 78/100 | Issues: 3
 ## License
 
 ISC
-

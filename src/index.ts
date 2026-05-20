@@ -22,13 +22,15 @@ program
 program
   .command("watch [dir]")
   .description("Watch a directory for changes and automatically analyze files")
-  .action((dir) => watchCommand(dir || "."));
+  .option("-m, --model <model>", "AI model to use")
+  .action((dir, options) => watchCommand(dir || ".", options));
 
 program
   .command("diff")
-  .description("Analyze files changed in the current git commit")
+  .description("Analyze files changed in the current git working tree")
   .option("-a, --agents <agents>", "Comma-separated list of agents to run")
   .option("-m, --model <model>", "AI model to use")
+  .option("-o, --output <path>", "Save report to markdown file")
   .action(diffCommand);
 
 program.parse(process.argv);
