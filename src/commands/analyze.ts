@@ -21,12 +21,68 @@ function askConfirmation(query: string): Promise<string> {
   );
 }
 
+function getFilesRecursive(dir: string, extensions: string[], ignoreList: string[]): string[] {
+  let results: string[] = [];
+  const list = fs.readdirSync(dir);
+  
+  for (const file of list) {
+    const fullPath = path.join(dir, file);
+    const stat = fs.statSync(fullPath);
+    
+    // Check if this path should be ignored
+    const relativePath = path.relative(process.cwd(), fullPath);
+    const shouldIgnore = ignoreList.some(pattern => {
+      if (file === pattern) return true;
+      if (relativePath.split(path.sep).includes(pattern)) return true;
+      if (pattern.startsWith("*.")) {
+        const ext = pattern.slice(1);
+        return fullPath.endsWith(ext);
+      }
+      return relativePath.includes(pattern);
+    });
+    
+    if (shouldIgnore) continue;
+
+    if (stat.isDirectory()) {
+      results = results.concat(getFilesRecursive(fullPath, extensions, ignoreList));
+    } else {
+      const ext = path.extname(file).toLowerCase();
+      if (extensions.includes(ext)) {
+        results.push(fullPath);
+      }
+    }
+  }
+  return results;
+}
+
 export async function analyzeCommand(filePath: string, options: any) {
   const config = await loadConfig();
 
   if (!fs.existsSync(filePath)) {
     console.error(chalk.red(`Error: File not found: ${filePath}`));
     process.exit(1);
+  }
+
+  const stat = fs.statSync(filePath);
+  if (stat.isDirectory()) {
+    if (!options.__suppressBanner) {
+      renderBanner();
+    }
+    const extensions = config.watch.extensions;
+    const ignoreList = config.ignore;
+    const files = getFilesRecursive(filePath, extensions, ignoreList);
+
+    if (files.length === 0) {
+      console.log(chalk.yellow(`No files found in directory matching extensions: ${extensions.join(", ")}`));
+      return;
+    }
+
+    console.log(chalk.blue(`Found ${files.length} files in directory. Analyzing...\n`));
+
+    for (const file of files) {
+      await analyzeCommand(file, { ...options, __suppressBanner: true });
+    }
+    return;
   }
 
   if (!options.__suppressBanner) {
