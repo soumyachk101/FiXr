@@ -1,0 +1,29 @@
+{
+  "agents": [
+    "bug",
+    "fixer",
+    "quality",
+    "security"
+  ],
+  "ignore": [
+    "node_modules",
+    "dist",
+    "*.test.js",
+    ".git",
+    "build",
+    "coverage"
+  ],
+  "watch": {
+    "extensions": [
+      ".ts"
+    ],
+    "debounce": 2000
+  },
+  "output": {
+    "format": "terminal",
+    "saveReport": false,
+    "reportPath": "./reports"
+  },
+  "model": "llama-3.3-70b-versatile",
+  "maxTokens": 2000
+}

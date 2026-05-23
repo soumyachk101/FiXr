@@ -1,6 +1,6 @@
 <div align="center">
 
-<!-- Clean SVG Header — static gradient, no deprecated SMIL -->
+<!-- Clean SVG Header — static gradient -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 180" width="100%">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -41,42 +41,49 @@
 
 - [Overview](#overview)
 - [Architecture](#architecture)
+  - [Agent Pipeline](#agent-pipeline)
+  - [Execution Flow](#execution-flow)
+- [📖 Beginner's Guide: How FiXr Works](#-beginners-guide-how-fixr-works)
+  - [1. The Agent Analogy](#1-the-agent-analogy)
+  - [2. How Data Flows Step-by-Step](#2-how-data-flows-step-by-step)
+- [⚡ Quickstart (60-Second Setup)](#-quickstart-60-second-setup)
+- [🔌 Special Focus: Setting up Groq](#-special-focus-setting-up-groq)
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
-- [Environment Variables](#environment-variables)
-- [CLI Commands](#cli-commands)
-  - [`codewatch analyze`](#codewatch-analyze-file)
-  - [`codewatch watch`](#codewatch-watch-dir)
+- [⚙️ Setup & Configuration](#️-setup--configuration)
+  - [1. Interactive Setup (`codewatch init`)](#1-interactive-setup-codewatch-init)
+  - [2. Environment Variables](#2-environment-variables)
+  - [3. LLM Provider Configurations](#3-llm-provider-configurations)
+- [🚀 CLI Commands Reference](#-cli-commands-reference)
+  - [`codewatch init`](#codewatch-init)
+  - [`codewatch analyze <file>`](#codewatch-analyze-file)
+  - [`codewatch watch [dir]`](#codewatch-watch-dir)
   - [`codewatch diff`](#codewatch-diff)
-- [Agent Pipeline](#agent-pipeline)
+- [🤖 Detailed Agent Cohort Specs](#-detailed-agent-cohort-specs)
   - [Agent 1: Bug Detective](#agent-1-bug-detective)
   - [Agent 2: Bug Fixer](#agent-2-bug-fixer)
   - [Agent 3: Code Quality Reviewer](#agent-3-code-quality-reviewer)
   - [Agent 4: Security Auditor](#agent-4-security-auditor)
-- [LLM Provider Configuration](#llm-provider-configuration)
-  - [Anthropic (Default)](#anthropic-default)
-  - [OpenAI](#openai)
-  - [DeepSeek](#deepseek)
-  - [Groq](#groq)
-  - [Ollama (Local)](#ollama-local)
-  - [Other OpenAI-Compatible Providers](#other-openai-compatible-providers)
-- [Configuration File](#configuration-file)
-- [Supported Languages](#supported-languages)
-- [Project Structure](#project-structure)
-- [Development](#development)
-- [Rate Limit Handling](#rate-limit-handling)
-- [Sample Output](#sample-output)
+- [🔧 Configuration File Reference](#-configuration-file-reference)
+  - [Cosmiconfig Search Order](#cosmiconfig-search-order)
+  - [Default Config Schema](#default-config-schema)
+- [🔌 Supported Languages Matrix](#-supported-languages-matrix)
+- [📁 Project Architecture & Layout](#-project-architecture--layout)
+- [🔄 Rate Limit & Retry Logic](#-rate-limit--retry-logic)
+- [💡 Senior Developer Workflow Integration](#-senior-developer-workflow-integration)
+- [📊 Sample Outputs](#-sample-outputs)
+- [❓ Beginner FAQ & Troubleshooting](#-beginner-faq--troubleshooting)
 - [License](#license)
 
 ---
 
 ## Overview
 
-FiXr is a terminal-first, multi-agent AI code analysis CLI. It runs a pipeline of four specialized LLM agents over your source files — each with a focused responsibility — and produces a unified report with severity-ranked findings, auto-generated fixes, quality scores, and security audits.
+**FiXr** is a terminal-first, multi-agent AI static code analysis CLI. It orchestrates a structured pipeline of four specialized LLM agents—each operating with a strict domain persona (detecting runtime bugs, writing targeted inline patches, assessing maintainability/complexity, and auditing security flaws). 
 
-Built for engineers who want deterministic code review without leaving the command line.
+Unlike legacy linters that only print issues, **FiXr** includes an active auto-patching mechanism. It can directly modify your files on disk with comment-annotated solutions. It is designed for engineers seeking deep, context-aware code review workflows without breaking context from the shell.
 
-> **Note:** The product name is **FiXr**. The CLI executable is **`codewatch`** (for backward compatibility).
+> **Note:** The product name is **FiXr**. The CLI binary executable is registered as **`codewatch`** for backward compatibility.
 
 ---
 
@@ -103,19 +110,13 @@ graph TD
     style G fill:#1a1a2e,stroke:#3a7bd5,stroke-width:3px,color:#fff
 ```
 
-**Pipeline execution order:**
-
-1. **Reader** — reads source file, detects language by file extension
-2. **Bug Detective** — scans for runtime/logic defects (runs on original code)
-3. **Bug Fixer** — consumes Bug Detective findings, generates patched code
-4. **Code Quality** — evaluates fixed code (if available) or original code
-5. **Security Auditor** — independently scans original code for OWASP-class vulnerabilities
-
-**Key rules:**
-- Bug Fixer requires Bug Detective output — skipped if no bugs found
-- Code Quality analyzes the fixed code version when Bug Fixer ran
-- Security Auditor runs independently on the original source
-- Agents can be selectively enabled/disabled via `--agents` flag
+**Pipeline Execution Hierarchy:**
+1. **Reader**: Detects programming language based on file extension and loads file buffer into memory.
+2. **Bug Detective**: Runs static analysis prompts over the raw source code to find runtime and logical bugs.
+3. **Bug Fixer**: Takes the Bug Detective's findings and generates a patched version of the file. It is skipped if no bugs are found.
+4. **Code Quality Reviewer**: Evaluates the code's complexity, readability, and modularity. Analyzes the *fixed code* if the Bug Fixer ran, otherwise analyzes the *original code*.
+5. **Security Auditor**: Runs an independent OWASP-aligned scan on the original source code.
+6. **Renderer**: Aggregates the results and prints the output (terminal color card or markdown report).
 
 ### Execution Flow
 
@@ -135,11 +136,11 @@ sequenceDiagram
     R-->>C: AST + language
 
     par Concurrent Agents
-        C->>BD: analyze(source)
-        BD-->>C: findings[]
+      C->>BD: analyze(source)
+      BD-->>C: findings[]
     and
-        C->>SA: analyze(source)
-        SA-->>C: vulnerabilities[]
+      C->>SA: analyze(source)
+      SA-->>C: vulnerabilities[]
     end
 
     C->>BF: findings + source
@@ -152,15 +153,102 @@ sequenceDiagram
     O-->>U: terminal report + exit code
 ```
 
-### Product Preview
+---
 
-#### Multi-Agent Workflow
+## 📖 Beginner's Guide: How FiXr Works
 
-![FiXr multi-agent workflow demonstration](docs/assets/fixr-overview.gif)
+If you are new to artificial intelligence, command-line interfaces (CLIs), or code review tools, here is a breakdown of what happens under the hood when you use FiXr.
 
-#### CLI Analyze Output
+### 1. The Agent Analogy
+Instead of using a single AI model to write a general review (which often leads to hallucinations or skipped lines), **FiXr divides the review among 4 specialized AI Agents**. Think of it as a virtual engineering team reviewing your code before production:
 
-![FiXr CLI analyze output demonstration](docs/assets/fixr-cli-demo.gif)
+| Agent | Virtual Role | Real-world Equivalent | What it looks for |
+|:---|:---|:---|:---|
+| **Bug Detective** | **The QA Tester** | Checks code line-by-line | Logical flaws, off-by-one loops, undefined variables, syntax crashes. |
+| **Bug Fixer** | **The Junior Developer** | Writes target code fixes | Consumes the Tester's bug list and writes the exact replacement code, adding `// FIXED:` comments. |
+| **Code Quality** | **The Tech Lead** | Scores style & structure | Evaluates readability, checks if functions are too long, reviews naming consistency, scores the file (0-100). |
+| **Security Auditor** | **The SecOps Specialist** | Audits credentials & safety | Scans for hardcoded credentials/secrets, SQL injections, and weak encryption. |
+
+---
+
+### 2. How Data Flows Step-by-Step
+When you execute `codewatch analyze src/app.ts --fix`:
+
+```
+[ Your Hard Drive ] ➔ 1. Read Code ➔ 2. Send to AI (Groq/Claude) ➔ 3. Process Report
+                                                                       │
+[ Your Hard Drive ] ↞  5. Overwrite File  ↞ 4. Ask User ("Apply?") ↞───┘
+```
+
+1. **Local Read**: FiXr opens `src/app.ts` on your computer and automatically detects the language (TypeScript) based on the `.ts` extension.
+2. **AI Processing**: FiXr wraps your code inside system instructions (prompts) and sends it securely to your chosen AI provider (e.g. Groq).
+3. **Agent Sequence**: 
+   - First, the **Bug Detective** and **Security Auditor** run in parallel to flag issues.
+   - Next, the **Bug Fixer** receives the list of bugs and creates a corrected code snippet.
+   - Finally, the **Code Quality Reviewer** grades the final output.
+4. **Terminal Report**: The results are formatted using color-coded cards and emojis, and printed directly to your screen.
+5. **Interactive Patching**: If the `--fix` flag was used, FiXr prompts you: `Do you want to apply these fixes? (y/n)`. If you type `y`, it updates `src/app.ts` on your hard drive with the fixed code.
+
+---
+
+## ⚡ Quickstart (60-Second Setup)
+
+Follow these commands to install and verify **FiXr** on your system:
+
+```bash
+# 1. Clone the repository and install dependencies
+git clone https://github.com/soumyachk101/FiXr.git
+cd FiXr
+npm install
+
+# 2. Compile TypeScript and link globally to your terminal
+npm run build
+npm link
+
+# 3. Initialize your workspace (Enter your API Key here)
+codewatch init
+
+# 4. Run your first code review & auto-fix session
+codewatch analyze src/index.ts --fix
+```
+
+---
+
+## 🔌 Special Focus: Setting up Groq
+
+**Groq** is a popular AI provider known for running models (like Meta's Llama 3) at speeds of over 500 tokens per second. It is perfect for local developer environments.
+
+### Step 1: Obtain a Groq API Key
+1. Go to [console.groq.com](https://console.groq.com/) and sign up for a free account.
+2. Navigate to **API Keys** in the sidebar.
+3. Click **Create API Key**, name it `FiXr-CLI`, and copy the key (it starts with `gsk_`).
+
+### Step 2: Configure FiXr to use Groq
+
+Run the initializer command:
+```bash
+codewatch init
+```
+When prompted:
+```text
+🔑 Enter your LLM API Key (or press Enter for local Ollama):
+```
+Paste your Groq API key (`gsk_...`) and press **Enter**.
+
+### Step 3: What FiXr Automatically Configures
+FiXr detects the `gsk_` prefix and automatically configures:
+- Your local `.env` file with the Groq URL:
+  ```env
+  OPENAI_API_KEY=gsk_...
+  OPENAI_API_BASE=https://api.groq.com/openai/v1
+  ```
+- Your local `.codewatchrc.json` file with the default Groq model:
+  ```json
+  "model": "llama-3.3-70b-versatile"
+  ```
+- Your workspace languages by scanning your directory for file extensions.
+
+You are now ready to run reviews using Groq's high-speed Llama models!
 
 ---
 
@@ -168,490 +256,197 @@ sequenceDiagram
 
 | Dependency | Minimum Version | Purpose |
 |:---|:---|:---|
-| [Node.js](https://nodejs.org/) | 18+ | Runtime |
-| [npm](https://npmjs.com/) | 9+ | Package manager |
-| [Git](https://git-scm.com/) | 2.0+ | Required for `codewatch diff` command |
-| LLM API key | — | At least one provider (Anthropic, OpenAI, DeepSeek, Groq, or local Ollama) |
+| [Node.js](https://nodejs.org/) | 18.0.0+ | Javascript runtime engine |
+| [npm](https://npmjs.com/) | 9.0.0+ | Dependency and packages installer |
+| [Git](https://git-scm.com/) | 2.0.0+ | Required for change tracking under the `diff` command |
+| LLM API Key | — | Anthropic Claude, OpenAI, DeepSeek, Groq, or Ollama (Local) |
 
 ---
 
 ## Installation
-
-### From Source
 
 ```bash
 # Clone the repository
 git clone https://github.com/soumyachk101/FiXr.git
 cd FiXr
 
-# Install dependencies
+# Install runtime dependencies
 npm install
 
-# Compile TypeScript to JavaScript
+# Compile TypeScript sources
 npm run build
 
-# Link the CLI globally (makes `codewatch` available in any directory)
+# Link binary globally
 npm link
 ```
 
-### Verify Installation
-
+Verify your installation:
 ```bash
 codewatch --version
 # Expected output: 1.0.0
 ```
 
-### Unlink (if needed)
-
+To uninstall or unlink:
 ```bash
 npm unlink -g codewatch
 ```
 
 ---
 
-## Environment Variables
+## ⚙️ Setup & Configuration
 
-Create a `.env` file in the project root, or export variables in your shell.
+### 1. Interactive Setup (`codewatch init`)
 
-### Required (pick one provider minimum)
-
-| Variable | Required For | Description |
-|:---|:---|:---|
-| `ANTHROPIC_API_KEY` | Anthropic Claude models | Your Anthropic API key |
-| `OPENAI_API_KEY` | OpenAI, DeepSeek, Groq, Ollama, or any OpenAI-compatible provider | API key for the provider |
-| `LLM_API_KEY` | Fallback for non-Anthropic providers | Alternative to `OPENAI_API_KEY` |
-
-### Optional
-
-| Variable | Default | Description |
-|:---|:---|:---|
-| `OPENAI_API_BASE` | `https://api.openai.com/v1` | Base URL for OpenAI-compatible providers (DeepSeek, Groq, Ollama, etc.) |
-
-### Provider-Specific Examples
+Run the interactive setup command to configure your environment:
 
 ```bash
-# Anthropic (default)
-export ANTHROPIC_API_KEY=sk-ant-...
-
-# OpenAI
-export OPENAI_API_KEY=sk-...
-
-# DeepSeek
-export OPENAI_API_KEY=sk-deepseek-...
-export OPENAI_API_BASE=https://api.deepseek.com
-
-# Groq
-export OPENAI_API_KEY=gsk_...
-export OPENAI_API_BASE=https://api.groq.com/openai/v1
-
-# Ollama (local)
-export OPENAI_API_KEY=ollama
-export OPENAI_API_BASE=http://localhost:11434/v1
+codewatch init
 ```
+
+The initializer:
+1. **Reads or Asks for API Key**: Automatically detects keys in environment variables or prompts you to enter one.
+2. **Auto-detects Provider & Model**: Analyzes key prefixes to set up Anthropic, OpenAI, DeepSeek, Groq, or Ollama.
+3. **Scans Project Extensions**: Crawls files in the current folder to check if it's a TypeScript, Javascript, Python, or Go project, and configures watch extensions accordingly.
+4. **Writes Config Files**: Generates `.codewatchrc.json` and updates `.env`.
+
+### 2. Environment Variables
+
+FiXr loads environment settings from a local `.env` file in the workspace directory, or uses active shell environment variables.
+
+| Key | Mandatory For | Description |
+|:---|:---|:---|
+| `ANTHROPIC_API_KEY` | Anthropic Claude models | Your Anthropic Claude API Key |
+| `OPENAI_API_KEY` | OpenAI, DeepSeek, Groq, Ollama | Your API token for the selected service |
+| `OPENAI_API_BASE` | DeepSeek, Groq, Ollama, Custom | Custom endpoint base URL for non-OpenAI endpoints |
 
 ---
 
-## CLI Commands
+## 🚀 CLI Commands Reference
 
-### Global Invocation
+### `codewatch init`
 
-```bash
-codewatch <command> [options]
-```
-
-### Via npm
+Automatically configures your project directory and environment settings.
 
 ```bash
-npm start -- <command> [options]
-```
-
-### Via Node Directly
-
-```bash
-node dist/index.js <command> [options]
+codewatch init
 ```
 
 ---
 
 ### `codewatch analyze <file>`
 
-Analyze a single file through the full agent pipeline (or a selected subset).
+Performs analysis of a single target source file.
 
-```
+```bash
 codewatch analyze <file-path> [options]
 ```
 
-#### Arguments
-
-| Argument | Required | Description |
-|:---|:---|:---|
-| `<file>` | Yes | Path to the source file to analyze (absolute or relative) |
-
 #### Options
 
-| Flag | Short | Type | Default | Description |
-|:---|:---|:---|:---|:---|
-| `--output <path>` | `-o` | `string` | `./reports/report-<filename>.md` | Save markdown report to specified file path |
-| `--agents <list>` | `-a` | `string` | `bug,fixer,quality,security` | Comma-separated list of agents to run |
-| `--model <model>` | `-m` | `string` | `claude-3-5-sonnet-20240620` | LLM model identifier to use for this run |
-
-#### Agent Values for `--agents`
-
-| Value | Agent | Description |
-|:---|:---|:---|
-| `bug` | Bug Detective | Detects runtime and logic defects |
-| `fixer` | Bug Fixer | Generates corrected code from findings |
-| `quality` | Code Quality Reviewer | Evaluates maintainability and structure |
-| `security` | Security Auditor | OWASP-aligned vulnerability scanning |
+| Option | Short | Default | Description |
+|:---|:---:|:---|:---|
+| `--fix` | `-f` | — | Run the fixer agent and write the patched file directly to disk |
+| `--yes` | `-y` | — | Skip confirmation prompts (auto-approves code overwrites) |
+| `--output <path>`| `-o` | config | Save final report to a specific Markdown file path |
+| `--agents <list>`| `-a` | config | Comma-separated active agents (subset of `bug,fixer,quality,security`) |
+| `--model <model>`| `-m` | config | Model override configuration for this command instance |
 
 #### Examples
 
 ```bash
-# Full pipeline — all 4 agents
-codewatch analyze src/index.ts
+# Full analysis pipeline run
+codewatch analyze src/utils.ts
 
-# Only bug detection and security audit (skip fixer + quality)
-codewatch analyze src/index.ts --agents bug,security
+# Apply fixes directly to file after terminal confirmation
+codewatch analyze src/utils.ts --fix
 
-# Analyze with a specific model and save report
-codewatch analyze src/app.ts --model gpt-4o -o reports/app-analysis.md
-
-# Analyze Python file with DeepSeek
-codewatch analyze scripts/etl.py --model deepseek-chat
-
-# Only security audit, save to custom path
-codewatch analyze src/auth.ts --agents security -o security-report.md
-
-# Analyze with Groq Llama model
-codewatch analyze src/api/handler.ts --model llama-3.3-70b-versatile
-
-# Quick bug scan with local Ollama
-codewatch analyze src/utils.ts --agents bug --model llama3
+# Quietly apply fixes during automated workflows (no prompts)
+codewatch analyze src/utils.ts --fix --yes
 ```
 
 ---
 
 ### `codewatch watch [dir]`
 
-Watch a directory for file changes and automatically run the analysis pipeline on modified files.
+Monitors a directory path for file modifications and triggers code reviews on save.
 
+```bash
+codewatch watch [directory-path] [options]
 ```
-codewatch watch [directory-path]
-```
-
-#### Arguments
-
-| Argument | Required | Default | Description |
-|:---|:---|:---|:---|
-| `[dir]` | No | `.` (current directory) | Directory to watch for changes |
-
-#### Behavior
-
-- Uses [chokidar](https://github.com/paulmillr/chokidar) for reliable file system watching
-- Debounced execution (default: `2000ms`) prevents duplicate analysis on rapid saves
-- Filters by configured file extensions (default: `.js`, `.ts`, `.py`, `.go`)
-- Ignores `node_modules`, `dist`, `.git`, and `*.test.js` by default
-- Runs the full agent pipeline (configurable via `.codewatchrc`)
-- Press `Ctrl+C` to stop watching
 
 #### Examples
 
 ```bash
-# Watch current directory
+# Watch the current directory and use default configurations
 codewatch watch
 
-# Watch specific source directory
-codewatch watch src
-
-# Watch with a specific model
-codewatch watch src --model gpt-4o
-
-# Watch Python project
-codewatch watch app --model deepseek-chat
+# Watch specific subdirectory using OpenAI GPT-4o
+codewatch watch src/api --model gpt-4o
 ```
 
 ---
 
 ### `codewatch diff`
 
-Analyze only files that have been modified in the current git working tree (uncommitted changes).
+Scans and reviews files modified in the active Git tree (detects uncommitted edits).
 
-```
+```bash
 codewatch diff [options]
 ```
-
-#### Options
-
-| Flag | Short | Type | Default | Description |
-|:---|:---|:---|:---|:---|
-| `--agents <list>` | `-a` | `string` | `bug,fixer,quality,security` | Comma-separated list of agents to run |
-| `--model <model>` | `-m` | `string` | `claude-3-5-sonnet-20240620` | LLM model identifier to use |
-
-#### Behavior
-
-- Runs `git diff --name-only HEAD` to detect changed files
-- Iterates through each changed file and runs the analysis pipeline sequentially
-- Skips files that no longer exist on disk
-- Reports total number of changed files before analysis begins
 
 #### Examples
 
 ```bash
-# Analyze all uncommitted changes with default settings
+# Audit changes before committing
 codewatch diff
 
-# Security-only scan on changed files
-codewatch diff --agents security
-
-# Full pipeline with Groq on changed files
-codewatch diff --model llama-3.3-70b-versatile
-
-# Save diff report
-codewatch diff --agents bug,security -o diff-security-report.md
+# Auto-apply patches to modified code before a commit
+codewatch diff --fix --yes
 ```
 
 ---
 
-## Agent Pipeline
+## 🤖 Detailed Agent Cohort Specs
 
 ### Agent 1: Bug Detective
-
-**File:** `src/agents/bugDetective.ts`
-
-Performs static analysis on the original source code to detect runtime and logic defects.
-
-**Detection categories:**
-
-| Category | Examples |
-|:---|:---|
-| Null/undefined references | Accessing `.property` on potentially null objects |
-| Off-by-one errors | Loop boundary conditions, array index mistakes |
-| Async/await misuse | Missing `await`, unhandled promise rejections |
-| Logic errors | Incorrect conditionals, inverted boolean checks |
-| Edge cases | Empty arrays, zero values, empty strings |
-| Unused variables | May indicate missing or dead logic |
-| Missing error handling | Unprotected I/O, network calls without try/catch |
-| Infinite loops | Missing break/exit conditions |
-
-**Severity levels:** `HIGH` (crashes/wrong behavior in production), `MEDIUM` (issues under specific conditions), `LOW` (minor issues/code smells)
-
-**Output format:** JSON with `bugs[]` array and `summary` string.
-
----
+- **Source**: [bugDetective.ts](file:///Users/soumyachakraborty/Documents/D/NexusOp%202.0%20Node.Js%20Backend/FiXr/src/agents/bugDetective.ts)
+- **Role**: Scans raw code buffers for syntax abnormalities and logic bugs.
+- **Grading Schema**: `HIGH` (causes runtime failure), `MEDIUM` (conditional crashes), `LOW` (bad styling, logic smells).
 
 ### Agent 2: Bug Fixer
-
-**File:** `src/agents/bugFixer.ts`
-
-Consumes Bug Detective findings and generates corrected code patches.
-
-**Behavior:**
-- Fixes only the bugs listed by Bug Detective — does not rewrite the file
-- Preserves original code style, formatting, and structure
-- Adds inline `// FIXED: <reason>` comments on each corrected line
-- If a bug cannot be safely fixed without more context, adds `// TODO: needs manual fix — <reason>`
-- Skipped entirely if Bug Detective found zero bugs
-
-**Output format:** JSON with `fixedCode` (complete patched source), `fixes[]` (applied patches), and `unfixed[]` (patches that need manual review).
-
----
+- **Source**: [bugFixer.ts](file:///Users/soumyachakraborty/Documents/D/NexusOp%202.0%20Node.Js%20Backend/FiXr/src/agents/bugFixer.ts)
+- **Role**: Receives Detective's JSON issues list. Reconstructs file lines with corrective edits.
+- **Edits Format**: Edits ONLY lines associated with identified bugs. Annotates patches with a trailing comment format: `// FIXED: <short reason>`.
 
 ### Agent 3: Code Quality Reviewer
-
-**File:** `src/agents/codeQuality.ts`
-
-Evaluates the fixed code (post Bug Fixer) or original code for maintainability and quality.
-
-**Evaluation criteria:**
-
-| Criterion | What It Checks |
-|:---|:---|
-| Readability | Unclear variable/function names, complex logic |
-| Structure | Functions longer than 30 lines, missing decomposition |
-| Best practices | Language-specific patterns and conventions |
-| Maintainability | Magic numbers, duplicated logic, missing comments |
-| Performance | O(n^2) where O(n) is possible, unnecessary allocations |
-| Documentation | Missing JSDoc/docstrings on public functions |
-
-**Rating scale:** `EXCELLENT` / `GOOD` / `NEEDS_WORK` / `POOR` with numeric score (0-100)
-
-**Output format:** JSON with `rating`, `score`, `suggestions[]`, `positives[]`, and `summary`.
-
----
+- **Source**: [codeQuality.ts](file:///Users/soumyachakraborty/Documents/D/NexusOp%202.0%20Node.Js%20Backend/FiXr/src/agents/codeQuality.ts)
+- **Role**: Assesses code readability, algorithmic complexity, architectural decomposition, and comment density.
+- **Scoring Schema**: `EXCELLENT` (90-100), `GOOD` (75-89), `NEEDS_WORK` (50-74), `POOR` (0-49).
 
 ### Agent 4: Security Auditor
-
-**File:** `src/agents/securityAudit.ts`
-
-Performs an OWASP-aligned security review on the original source code.
-
-**Vulnerability categories:**
-
-| Category | OWASP Reference |
-|:---|:---|
-| Injection (SQL, command, LDAP) | A03:2021-Injection |
-| XSS (reflected, stored, DOM-based) | A03:2021-Injection |
-| Hardcoded secrets (API keys, passwords, tokens) | A02:2021-Cryptographic Failures |
-| Insecure direct object references (IDOR) | A01:2021-Broken Access Control |
-| Broken authentication / missing auth checks | A07:2021-Identification and Authentication Failures |
-| Sensitive data exposure (logging PII, plaintext passwords) | A02:2021-Cryptographic Failures |
-| Insecure deserialization | A08:2021-Software and Data Integrity Failures |
-| Path traversal | A01:2021-Broken Access Control |
-| CORS misconfiguration (wildcard origins) | A05:2021-Security Misconfiguration |
-| Weak cryptography (MD5, SHA1 for passwords) | A02:2021-Cryptographic Failures |
-| Race conditions | A04:2021-Insecure Design |
-| Insecure random (`Math.random()` for security) | A02:2021-Cryptographic Failures |
-
-**Severity levels:** `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, `INFO`
-
-**Output format:** JSON with `issues[]`, `overallRisk`, and `summary`.
+- **Source**: [securityAudit.ts](file:///Users/soumyachakraborty/Documents/D/NexusOp%202.0%20Node.Js%20Backend/FiXr/src/agents/securityAudit.ts)
+- **Role**: Scans files for OWASP Top 10 vulnerabilities (hardcoded secrets, SQL injections, insecure cryptographic methods).
 
 ---
 
-## LLM Provider Configuration
+## 🔧 Configuration File Reference
 
-FiXr supports Anthropic natively and any OpenAI-compatible provider via the `--model` flag.
+### Cosmiconfig Search Order
 
-### Anthropic (Default)
+FiXr searches for project settings in your workspace root, checking the following files in priority order:
 
-```bash
-export ANTHROPIC_API_KEY=your-anthropic-key
+1. `.codewatchrc.json`
+2. `.codewatchrc.yaml` / `.codewatchrc.yml`
+3. `.codewatchrc.js` / `.codewatchrc.cjs`
+4. `codewatch.config.js` / `codewatch.config.cjs`
+5. `codewatch` configuration block in `package.json`
 
-# Default Claude model
-codewatch analyze src/index.ts
-
-# Specific Claude model
-codewatch analyze src/index.ts --model claude-3-opus-20240229
-
-# With selective agents
-codewatch analyze src/index.ts --agents bug,security --model claude-3-5-sonnet-20240620
-
-# Export report
-codewatch analyze src/app.ts --model claude-3-5-sonnet-20240620 -o reports/anthropic-report.md
-```
-
-### OpenAI
-
-```bash
-export OPENAI_API_KEY=your-openai-key
-
-codewatch analyze src/index.ts --model gpt-4o
-codewatch analyze src/index.ts --model gpt-4-turbo
-codewatch analyze src/index.ts --model gpt-3.5-turbo
-
-# Selective agents
-codewatch analyze src/api/claude.ts --agents bug,fixer --model gpt-4o
-
-# Watch mode
-codewatch watch src --model gpt-4o
-
-# Git diff
-codewatch diff --model gpt-4o
-```
-
-### DeepSeek
-
-```bash
-export OPENAI_API_KEY=your-deepseek-key
-export OPENAI_API_BASE=https://api.deepseek.com
-
-codewatch analyze src/index.ts --model deepseek-chat
-codewatch analyze src/index.ts --model deepseek-coder
-
-# Selective agents
-codewatch analyze src/index.ts --agents bug,security --model deepseek-chat
-
-# Export report
-codewatch analyze src/app.ts --model deepseek-chat -o reports/deepseek-report.md
-
-# Watch mode
-codewatch watch src --model deepseek-chat
-```
-
-### Groq
-
-```bash
-export OPENAI_API_KEY=your-groq-key
-export OPENAI_API_BASE=https://api.groq.com/openai/v1
-
-codewatch analyze src/index.ts --model llama-3.3-70b-versatile
-codewatch analyze src/index.ts --model llama-3.1-8b-instant
-codewatch analyze src/index.ts --model mixtral-8x7b-32768
-
-# Selective agents
-codewatch analyze src/index.ts --agents bug,quality --model llama-3.3-70b-versatile
-
-# Export report
-codewatch analyze src/app.ts --model llama-3.3-70b-versatile -o reports/groq-report.md
-
-# Watch mode
-codewatch watch src --model llama-3.3-70b-versatile
-
-# Git diff
-codewatch diff --model llama-3.3-70b-versatile
-```
-
-### Ollama (Local)
-
-```bash
-# Start Ollama server
-ollama serve
-
-# Set environment
-export OPENAI_API_KEY=ollama
-export OPENAI_API_BASE=http://localhost:11434/v1
-
-# Run with local models
-codewatch analyze src/index.ts --model llama3
-codewatch analyze src/index.ts --model codellama
-codewatch analyze src/index.ts --model mistral
-
-# Selective agents
-codewatch analyze src/index.ts --agents bug,security --model llama3
-
-# Watch mode
-codewatch watch src --model llama3
-
-# Git diff
-codewatch diff --model llama3
-```
-
-### Other OpenAI-Compatible Providers
-
-For any provider with an OpenAI-compatible `/v1/chat/completions` endpoint:
-
-```bash
-export OPENAI_API_KEY=your-provider-key
-export OPENAI_API_BASE=https://provider-endpoint.example.com/v1
-
-codewatch analyze src/index.ts --model your-model-name
-```
-
-**Examples:** OpenRouter, Together AI, Fireworks AI, Perplexity, Mistral API, etc.
-
----
-
-## Configuration File
-
-FiXr uses [Cosmiconfig](https://github.com/cosmiconfig/cosmiconfig) for project-level configuration. The following files are searched in order:
-
-| File | Format |
-|:---|:---|
-| `.codewatchrc.json` | JSON |
-| `.codewatchrc.yaml` | YAML |
-| `.codewatchrc.yml` | YAML |
-| `.codewatchrc.js` | JavaScript |
-| `.codewatchrc.cjs` | CommonJS |
-| `codewatch.config.js` | JavaScript |
-| `codewatch.config.cjs` | CommonJS |
-| `codewatch` key in `package.json` | JSON |
-
-### Default Configuration
+### Default Config Schema
 
 ```json
 {
   "agents": ["bug", "fixer", "quality", "security"],
-  "ignore": ["node_modules", "dist", "*.test.js", ".git"],
+  "ignore": ["node_modules", "dist", "*.test.js", ".git", "build", "coverage"],
   "watch": {
     "extensions": [".js", ".ts", ".py", ".go"],
     "debounce": 2000
@@ -666,225 +461,159 @@ FiXr uses [Cosmiconfig](https://github.com/cosmiconfig/cosmiconfig) for project-
 }
 ```
 
-### Configuration Reference
+---
 
-| Key | Type | Default | Description |
-|:---|:---|:---|:---|
-| `agents` | `string[]` | `["bug", "fixer", "quality", "security"]` | Default agents to run when `--agents` is not specified |
-| `ignore` | `string[]` | `["node_modules", "dist", "*.test.js", ".git"]` | Patterns to ignore in watch mode |
-| `watch.extensions` | `string[]` | `[".js", ".ts", ".py", ".go"]` | File extensions to watch for changes |
-| `watch.debounce` | `number` | `2000` | Milliseconds to wait before analyzing after a file change |
-| `output.format` | `"terminal" \| "markdown"` | `"terminal"` | Default output format |
-| `output.saveReport` | `boolean` | `false` | Automatically save markdown reports |
-| `output.reportPath` | `string` | `"./reports"` | Directory for auto-saved reports |
-| `model` | `string` | `"claude-3-5-sonnet-20240620"` | Default LLM model |
-| `maxTokens` | `number` | `2000` | Max tokens per LLM response |
+## 🔌 Supported Languages Matrix
 
-### Example: Project-Level Config
-
-Create `.codewatchrc.json` in your project root:
-
-```json
-{
-  "agents": ["bug", "security"],
-  "model": "gpt-4o",
-  "watch": {
-    "extensions": [".ts", ".tsx"],
-    "debounce": 3000
-  },
-  "ignore": ["node_modules", "dist", "__tests__", "coverage"],
-  "output": {
-    "format": "terminal",
-    "saveReport": true,
-    "reportPath": "./ci-reports"
-  }
-}
-```
+* **JavaScript** (`.js`, `.jsx`, `.mjs`)
+* **TypeScript** (`.ts`, `.tsx`)
+* **Python** (`.py`)
+* **Go** (`.go`)
+* **Java** (`.java`)
+* **C / C++** (`.c`, `.cpp`, `.h`)
+* **Rust** (`.rs`)
+* **Ruby** (`.rb`)
+* **PHP** (`.php`)
 
 ---
 
-## Supported Languages
-
-| Extension | Language | Bug Detective | Bug Fixer | Code Quality | Security Auditor |
-|:---|:---|:---:|:---:|:---:|:---:|
-| `.js` | JavaScript | ✅ | ✅ | ✅ | ✅ |
-| `.ts` | TypeScript | ✅ | ✅ | ✅ | ✅ |
-| `.py` | Python | ✅ | ✅ | ✅ | ✅ |
-| `.go` | Go | ✅ | ✅ | ✅ | ✅ |
-| `.java` | Java | ✅ | ✅ | ✅ | ✅ |
-| `.cpp` | C++ | ✅ | ✅ | ✅ | ✅ |
-| `.c` | C | ✅ | ✅ | ✅ | ✅ |
-| `.rb` | Ruby | ✅ | ✅ | ✅ | ✅ |
-| `.php` | PHP | ✅ | ✅ | ✅ | ✅ |
-| `.rs` | Rust | ✅ | ✅ | ✅ | ✅ |
-
-> All agents work on all supported languages. Quality depends on the LLM's training data for each language.
-
----
-
-## Project Structure
+## 📁 Project Architecture & Layout
 
 ```
 FiXr/
-├── src/
-│   ├── index.ts                  # CLI entrypoint — Commander.js setup, command registration
-│   │
-│   ├── api/
-│   │   └── claude.ts             # LLM client — Anthropic SDK + OpenAI-compatible fetch
-│   │                               # Handles routing, rate limiting, retries (3 attempts)
-│   │
-│   ├── agents/
-│   │   ├── types.ts              # TypeScript interfaces (Bug, Fix, QualityReport, SecurityIssue, PipelineContext)
-│   │   ├── pipeline.ts           # Orchestrator — language detection, agent sequencing
-│   │   ├── bugDetective.ts       # Agent 1 — bug detection (null, boundary, async, logic)
-│   │   ├── bugFixer.ts           # Agent 2 — patch generation with // FIXED: annotations
-│   │   ├── codeQuality.ts        # Agent 3 — maintainability scoring (0-100)
-│   │   └── securityAudit.ts      # Agent 4 — OWASP vulnerability scanning
-│   │
-│   ├── commands/
-│   │   ├── analyze.ts            # Single-file pipeline execution
-│   │   ├── watch.ts              # Chokidar file watcher with lodash debounce
-│   │   └── diff.ts               # Git diff — iterates changed files through pipeline
-│   │
-│   ├── config/
-│   │   └── loader.ts             # Cosmiconfig resolution, default config, Config interface
-│   │
-│   └── output/
-│       ├── terminal.ts           # Chalk-based terminal renderer with severity coloring
-│       └── markdown.ts           # Markdown report generator with table formatting
-│
-├── docs/
-│   └── assets/
-│       ├── fixr-overview.gif     # Workflow demo
-│       └── fixr-cli-demo.gif     # CLI output demo
-│
-├── package.json                  # npm config, dependencies, bin entry
-├── tsconfig.json                 # TypeScript config (ES2020, CommonJS, strict)
-├── .gitignore
-└── README.md
-```
-
-### Key Source Files
-
-| File | Lines | Purpose |
-|:---|:---|:---|
-| `src/index.ts` | ~34 | CLI entrypoint — registers 3 commands with Commander.js |
-| `src/api/claude.ts` | ~124 | Unified LLM client — routes to Anthropic SDK or OpenAI-compatible fetch |
-| `src/agents/pipeline.ts` | ~51 | Pipeline orchestrator — reads file, detects language, runs agents in sequence |
-| `src/agents/bugDetective.ts` | ~63 | Bug detection agent with structured JSON prompt |
-| `src/agents/bugFixer.ts` | ~63 | Bug fixing agent — consumes Detective output |
-| `src/agents/codeQuality.ts` | ~62 | Code quality agent — evaluates fixed or original code |
-| `src/agents/securityAudit.ts` | ~68 | Security audit agent — OWASP-aligned scanning |
-| `src/commands/analyze.ts` | ~40 | Analyze command — loads config, runs pipeline, renders output |
-| `src/commands/watch.ts` | ~38 | Watch command — chokidar + debounce + pipeline |
-| `src/commands/diff.ts` | ~24 | Diff command — git diff + iterate + analyze |
-| `src/config/loader.ts` | ~44 | Config loader — cosmiconfig with typed defaults |
-| `src/output/terminal.ts` | ~59 | Terminal renderer — chalk coloring, severity badges |
-| `src/output/markdown.ts` | ~58 | Markdown report — tables for bugs, fixes, quality, security |
-
----
-
-## Development
-
-### npm Scripts
-
-| Command | Description |
-|:---|:---|
-| `npm run build` | Compile TypeScript to JavaScript (`tsc`) |
-| `npm run watch` | Auto-rebuild on file change (`tsc -w`) |
-| `npm start` | Run the CLI via Node (`node dist/index.js`) |
-
-### Development Workflow
-
-```bash
-# Terminal 1: Watch for TypeScript changes
-npm run watch
-
-# Terminal 2: Run commands against source files
-npm start -- analyze src/index.ts
-npm start -- watch src
-npm start -- diff
-```
-
-### Building for Production
-
-```bash
-# Clean build
-rm -rf dist/
-npm run build
-
-# Verify output
-ls dist/
-# Should contain: index.js, api/, agents/, commands/, config/, output/
-```
-
-### Linking for Local Development
-
-```bash
-# After building, link globally
-npm link
-
-# Now `codewatch` is available in any directory
-codewatch --version
-codewatch analyze /path/to/any/file.ts
+├── dist/                             # Compiled JavaScript build output
+├── src/                              # TypeScript CLI codebase
+│   ├── index.ts                      # CLI entrypoint (Commander config)
+│   ├── agents/                       # Agent logic
+│   │   ├── types.ts                  # Shared data schemas
+│   │   ├── pipeline.ts               # Pipeline orchestrator
+│   │   ├── bugDetective.ts           # Agent 1 (Bug detection)
+│   │   ├── bugFixer.ts               # Agent 2 (Targeted patch writer)
+│   │   ├── codeQuality.ts            # Agent 3 (Maintainability evaluation)
+│   │   └── securityAudit.ts          # Agent 4 (Security vulnerability scanner)
+│   ├── api/                          # LLM integration
+│   │   └── claude.ts                 # Unified client API wrapper
+│   ├── commands/                     # Commander action modules
+│   │   ├── init.ts                   # Automated workspace initializer
+│   │   ├── analyze.ts                # Single-file analyzer command
+│   │   ├── watch.ts                  # Directory watcher command
+│   │   └── diff.ts                   # Git change tracker command
+│   └── output/                       # Output format renderers
+│       ├── terminal.ts               # Chalk terminal logger & ASCII logo
+│       └── markdown.ts               # Markdown report compiler
 ```
 
 ---
 
-## Rate Limit Handling
+## 🔄 Rate Limit & Retry Logic
 
-FiXr handles API rate limits automatically for non-Anthropic providers:
-
-| Behavior | Details |
-|:---|:---|
-| Max retries | 3 attempts on HTTP 429 |
-| Wait-time parsing | Extracts retry delay from provider error messages (seconds or milliseconds) |
-| Exponential backoff | Falls back to 1s → 2s → 4s if no wait-time is provided |
-| Anthropic SDK | Handled natively by `@anthropic-ai/sdk` |
+To handle high-frequency calls, FiXr implements automated rate limit handling inside the API layer:
+* **HTTP 429 Interception**: Detects rate-limit errors from OpenAI-compatible endpoints.
+* **Auto-Delay Parsing**: Extracts requested wait time from response bodies (e.g., `try again in 2.5s`).
+* **Exponential Backoff**: Falls back to doubling delays (`1s` ➔ `2s` ➔ `4s`) for a maximum of `3` retries before failing.
 
 ---
 
-## Sample Output
+## 💡 Senior Developer Workflow Integration
+
+### Git Pre-commit Hook Integration
+Prevent bad code from being committed. Create `.husky/pre-commit`:
+```bash
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+echo "🔍 Running pre-commit checks..."
+codewatch diff --agents bug,security
+```
+
+### GitHub Actions Quality Gate
+Add `.github/workflows/fixr.yml` to run checks on Pull Requests:
+```yaml
+name: Quality Gate
+on: [pull_request]
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+      - run: npm install && npm run build && npm link
+      - run: codewatch diff --agents bug,security
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+```
+
+---
+
+## 📊 Sample Outputs
+
+### Terminal Output Simulation
 
 ```text
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  CodeWatch — Multi-Agent Analysis
-  File: src/app.ts
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ███████╗██╗██╗  ██╗██████╗ 
+  ██╔════╝██║╚██╗██╔╝██╔══██╗
+  █████╗  ██║ ╚███╔╝ ██████╔╝
+  ██╔══╝  ██║ ██╔██╗ ██╔══██╗
+  ██║     ██║██╔╝ ██╗██║  ██║
+  ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝
+   FiXr — Multi-Agent Code Intelligence
+   v1.0.0 | Static analysis, security audit & auto-patching
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Analysis Target: src/api/payment.ts
+  Language:        TypeScript
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 🐛 BUG DETECTIVE
-  [HIGH] Line 23 — missing null check before user.name
-  [MEDIUM] Line 45 — possible off-by-one in loop boundary
+  [HIGH] Line 45 — Object 'user' is possibly 'undefined' before user.email property read (null-reference)
 
 🔧 BUG FIXER
-  - Added null guard before user.name on line 23
-  - Corrected loop termination condition on line 45
+  Applied the following patches:
+  ✔ Added optional chain checking to user.email on line 45
 
 ✨ CODE QUALITY
-  Rating: GOOD (78/100)
-  - processData is too long (87 lines); consider extraction
-    Suggestion: Split into 3 smaller functions: validateInput(), transformData(), formatOutput()
+  Rating: GOOD (84/100)
+  Suggestions for improvement:
+    - [MEDIUM] Line 102: Function payInvoice is too long (45 lines)
 
 🔒 SECURITY AUDITOR
-  [CRITICAL] Line 34 — SQL injection risk in raw query construction
-    User input directly concatenated into SQL query without sanitization
+  Overall Risk Level: HIGH
+  [HIGH] Line 140 — Plaintext token logging variable detected (PII-leak)
+    Desc: Secret authorization token logged to console buffer
+    Fix:  Remove log expression or mask credential string patterns
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Score: 78/100  |  Issues: 3
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Score: 84/100  |  Bugs: 1  |  Security Issues: 1
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-### Markdown Report Structure
+---
 
-When using `--output` or `saveReport: true`, the markdown report includes:
+## ❓ Beginner FAQ & Troubleshooting
 
-1. **Bug Detective** — severity/line/description/category table
-2. **Bug Fixer** — applied fixes list + complete fixed code block
-3. **Code Quality** — priority/category/line/issue/suggestion table + rating + score
-4. **Security Auditor** — severity/line/title/description/OWASP table + overall risk
+### Q: What is an API key and where do I get it?
+An API key is like a password that allows the FiXr CLI to communicate with an AI model (like Groq, Anthropic, or OpenAI). You can create key accounts for free:
+- **Groq key**: [console.groq.com](https://console.groq.com)
+- **Anthropic Claude key**: [console.anthropic.com](https://console.anthropic.com)
+- **OpenAI key**: [platform.openai.com](https://platform.openai.com)
+
+### Q: What does `npm link` do?
+It creates a shortcut on your machine so you can run the command `codewatch` from any directory in your terminal, instead of typing `node dist/index.js` inside the project folder.
+
+### Q: Does my code get uploaded or saved?
+Your code is only sent temporarily to the LLM Provider you configured (e.g. Groq) to perform the static analysis check. It is not saved or stored by the CLI.
+
+### Q: How do I run this tool on my other projects?
+1. Open your terminal and navigate to your other project: `cd /path/to/my-other-project`.
+2. Run `codewatch init` to set up the configuration file `.codewatchrc.json` for that specific project.
+3. Run `codewatch analyze <filename>` to inspect your project files.
 
 ---
 
 ## License
 
-ISC
+This project is licensed under the terms of the [ISC License](LICENSE).
