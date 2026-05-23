@@ -18,12 +18,12 @@ program
   .action(initCommand);
 
 program
-  .command("analyze <file>")
-  .description("Analyze a single file with specialized agents and optionally apply fixes")
+  .command("analyze <path>")
+  .description("Analyze a single file or a directory recursively with specialized agents and optionally apply fixes")
   .option("-o, --output <path>", "Save report to markdown file")
   .option("-a, --agents <agents>", "Comma-separated list of agents to run (bug,fixer,quality,security)")
   .option("-m, --model <model>", "AI model to use")
-  .option("-f, --fix", "Automatically apply generated fixes back to the file")
+  .option("-f, --fix", "Automatically apply generated fixes back to the target file(s)")
   .option("-y, --yes", "Skip prompt and auto-approve all fixes (useful for CI/CD)")
   .action(analyzeCommand);
 
