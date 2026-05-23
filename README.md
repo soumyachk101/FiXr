@@ -333,13 +333,17 @@ codewatch init
 
 ---
 
-### `codewatch analyze <file>`
+### `codewatch analyze <path>`
 
-Performs analysis of a single target source file.
+Performs analysis of a single target source file or a whole directory path recursively.
 
 ```bash
-codewatch analyze <file-path> [options]
+codewatch analyze <file-or-directory-path> [options]
 ```
+
+#### Arguments
+
+* `<path>`: The target file path (e.g. `src/index.ts`) or directory path (e.g. `src`) to analyze. When a directory is specified, FiXr recursively scans for all files matching project extensions (excluding ignored folders).
 
 #### Options
 
@@ -354,14 +358,14 @@ codewatch analyze <file-path> [options]
 #### Examples
 
 ```bash
-# Full analysis pipeline run
+# Full analysis pipeline run on a single file
 codewatch analyze src/utils.ts
 
-# Apply fixes directly to file after terminal confirmation
+# Apply fixes directly to a file after terminal confirmation
 codewatch analyze src/utils.ts --fix
 
-# Quietly apply fixes during automated workflows (no prompts)
-codewatch analyze src/utils.ts --fix --yes
+# Quietly apply fixes to all files in an entire directory recursively (no prompts)
+codewatch analyze src --fix --yes
 ```
 
 ---
